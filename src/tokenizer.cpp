@@ -8,7 +8,10 @@ void tokenizer::tokenize(std::string &source_code) {
     _tokens.clear();
 
     _source_remove_comments(source_code);
-    std::cout << source_code;
+
+    token tk;
+    while(_source_next_token(tk, source_code))
+        _tokens.emplace_back(tk);
 }
 
 std::string tokenizer::to_string() {
@@ -141,4 +144,24 @@ void tokenizer::_source_remove_comments(std::string &source_code) {
     // Remove duplicate newlines
     auto newline_ex = std::regex("(\n|\r){1,}", std::regex_constants::ECMAScript);
     source_code = std::regex_replace(source_code, newline_ex, "\n");
+}
+
+bool tokenizer::_source_next_token(token &token, std::string &source_code) {
+    const static auto REGEX_WHITESPACE  = std::regex(
+            "(\\s|\r|\n)+",
+            std::regex_constants::ECMAScript);
+    const static auto REGEX_SYMBOL      = std::regex(
+            R"(\{|\}|\(|\)|\[|\]|\.|,|;|\+|-|\*|\/|&|\||>|<|=|~)",
+            std::regex_constants::ECMAScript);
+    const static auto REGEX_KEYWORD     = std::regex(
+            "class|constructor|function|method|field|static|var|int|char|boolean|void|true|false|null|this|let|do|if|else|while|return",
+            std::regex_constants::ECMAScript);
+    const static auto REGEX_INT_CONST   = std::regex(
+            "\"(^(\n|\"))*\"",
+            std::regex_constants::ECMAScript);
+
+    source_code = std::regex_replace(source_code, REGEX_WHITESPACE, "", std::regex_constants::match_continuous);
+
+
+
 }
