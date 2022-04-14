@@ -1,2 +1,7 @@
 # CMake
 cmake-build-debug/
+cmake-build-release/
+
+# Output files
+*.vm
+*.xml
