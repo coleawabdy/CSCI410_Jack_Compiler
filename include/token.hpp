@@ -46,4 +46,9 @@ struct token {
 
     type_t type;
     value_t value;
+
+    template <typename Return>
+    inline const Return& get_value() const {
+        return std::get<Return>(value);
+    }
 };
