@@ -1,9 +1,14 @@
 #include "tokenizer.hpp"
 
 #include <sstream>
+#include <regex>
+#include <iostream>
 
 void tokenizer::tokenize(std::string &source_code) {
     _tokens.clear();
+
+    _source_remove_comments(source_code);
+    std::cout << source_code;
 }
 
 std::string tokenizer::to_string() {
@@ -122,4 +127,18 @@ void tokenizer::_token_keyword_to_string(const token::keyword_t &keyword, std::s
             str = "this";
             break;
     }
+}
+
+void tokenizer::_source_remove_comments(std::string &source_code) {
+    // Multi line comments
+    auto comment_multiline_ex = std::regex(R"((\/\*.*?\*\/)+)", std::regex_constants::ECMAScript);
+    source_code = std::regex_replace(source_code, comment_multiline_ex, "");
+
+    // Single line comments
+    auto comment_ex = std::regex(R"((\/\/)(.+?)([\n\r]|\*\)))", std::regex_constants::ECMAScript);
+    source_code = std::regex_replace(source_code, comment_ex, "");
+
+    // Remove duplicate newlines
+    auto newline_ex = std::regex("(\n|\r){1,}", std::regex_constants::ECMAScript);
+    source_code = std::regex_replace(source_code, newline_ex, "\n");
 }

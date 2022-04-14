@@ -20,4 +20,6 @@ public:
 private:
     static void _token_to_tag(const token &token, std::string &name, std::string &value);
     static void _token_keyword_to_string(const token::keyword_t&, std::string& str);
+
+    static void _source_remove_comments(std::string& source_code);
 };

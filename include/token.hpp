@@ -42,7 +42,7 @@ struct token {
     typedef std::string string_constant_t;
     typedef char symbol_t;
 
-    typedef std::variant<keyword_t, identifier_t, int_constant_t, string_constant_t, symbol_t> value_t;
+    typedef std::variant<keyword_t, int_constant_t, symbol_t, std::string> value_t;
 
     type_t type;
     value_t value;
