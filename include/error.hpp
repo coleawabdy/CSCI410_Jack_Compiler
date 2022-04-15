@@ -14,3 +14,11 @@ public:
 
     [[nodiscard]] inline const std::filesystem::path& get_filename() const noexcept { return _filename; };
 };
+
+class tokenizing_error : public std::runtime_error {
+private:
+    const std::filesystem::path _filename;
+public:
+    inline tokenizing_error(const std::string& message) :
+            std::runtime_error(message) {};
+};

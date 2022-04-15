@@ -4,6 +4,7 @@
 
 #include <string>
 #include <list>
+#include <regex>
 
 class tokenizer {
 private:
@@ -23,4 +24,5 @@ private:
 
     static void _source_remove_comments(std::string& source_code);
     static bool _source_next_token(token &token, std::string &source_code);
+    static bool _check_matches(const std::smatch &matches, std::string &source_code);
 };

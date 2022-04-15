@@ -1,8 +1,34 @@
 #include "tokenizer.hpp"
+#include "error.hpp"
 
 #include <sstream>
 #include <regex>
 #include <iostream>
+#include <unordered_map>
+
+const std::unordered_map<std::string, token::keyword_t> KEYWORD_DECODER = {
+        {"class",       token::keyword_t::CLASS},
+        {"method",      token::keyword_t::METHOD},
+        {"function",    token::keyword_t::FUNCTION},
+        {"constructor", token::keyword_t::CONSTRUCTOR},
+        {"int",         token::keyword_t::INT},
+        {"bool",        token::keyword_t::BOOL},
+        {"char",        token::keyword_t::CHAR},
+        {"void",        token::keyword_t::VOID},
+        {"var",         token::keyword_t::VAR},
+        {"static",      token::keyword_t::STATIC},
+        {"field",       token::keyword_t::FIELD},
+        {"let",         token::keyword_t::LET},
+        {"do",          token::keyword_t::DO},
+        {"if",          token::keyword_t::IF},
+        {"else",        token::keyword_t::ELSE},
+        {"while",       token::keyword_t::WHILE},
+        {"return",      token::keyword_t::RETURN},
+        {"true",        token::keyword_t::TRUE},
+        {"false",       token::keyword_t::FALSE},
+        {"null",        token::keyword_t::NUL},
+        {"this",        token::keyword_t::THIS}
+};
 
 void tokenizer::tokenize(std::string &source_code) {
     _tokens.clear();
@@ -159,9 +185,39 @@ bool tokenizer::_source_next_token(token &token, std::string &source_code) {
     const static auto REGEX_INT_CONST   = std::regex(
             "\"(^(\n|\"))*\"",
             std::regex_constants::ECMAScript);
+    const static auto REGEX_STR_CONST   = std::regex(
+            R"("[^"]*")",
+            std::regex_constants::ECMAScript);
 
     source_code = std::regex_replace(source_code, REGEX_WHITESPACE, "", std::regex_constants::match_continuous);
 
+    std::smatch matches;
 
+    std::regex_search(source_code, matches, REGEX_SYMBOL, std::regex_constants::match_continuous);
+    if(_check_matches(matches, source_code)) {
+        token.type = token::type_t::SYMBOL;
+        token.value = token::symbol_t(matches[0].str()[0]);
+        return true;
+    }
 
+    std::regex_search(source_code, matches, REGEX_KEYWORD, std::regex_constants::match_continuous);
+    if(_check_matches(matches, source_code)) {
+        token.type = token::type_t::KEYWORD;
+        token.value = KEYWORD_DECODER.at(matches[0].str());
+        return true;
+    }
+
+    return false;
+}
+
+bool tokenizer::_check_matches(const std::smatch &matches, std::string &source_code) {
+    if(matches.size() > 1)
+        throw tokenizing_error("More than one match");
+
+    if(matches.size() == 1) {
+        source_code.erase(matches[0].first, matches[0].second);
+        return true;
+    }
+
+    return false;
 }
