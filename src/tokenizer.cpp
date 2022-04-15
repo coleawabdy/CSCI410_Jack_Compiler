@@ -53,14 +53,14 @@ std::string tokenizer::to_string() {
             << "<"
             << tag_name
             << "> "
-            << tag_value
+            << tag_value.c_str()
             << " </"
             << tag_name
             << ">"
             << std::endl;
     }
 
-    out << "</tokens>" << std::endl << std::endl;
+    out << "</tokens>" << std::endl;
 
     return out.str();
 }
@@ -77,7 +77,7 @@ void tokenizer::_token_to_tag(const token &token, std::string &name, std::string
             break;
         case token::type_t::SYMBOL:
             name = "symbol";
-            value = token.get_value<token::symbol_t>();
+            _token_process_symbol( token.get_value<token::symbol_t>(), value);
             break;
         case token::type_t::STRING_CONSTANT:
             name = "stringConstant";
@@ -183,41 +183,84 @@ bool tokenizer::_source_next_token(token &token, std::string &source_code) {
             "class|constructor|function|method|field|static|var|int|char|boolean|void|true|false|null|this|let|do|if|else|while|return",
             std::regex_constants::ECMAScript);
     const static auto REGEX_INT_CONST   = std::regex(
-            "\"(^(\n|\"))*\"",
+            "\\d+",
             std::regex_constants::ECMAScript);
     const static auto REGEX_STR_CONST   = std::regex(
             R"("[^"]*")",
+            std::regex_constants::ECMAScript);
+    const static auto REGEX_IDENTIFIER  = std::regex(
+            "([a-zA-Z]|_)([a-zA-Z]|\\d|_)*",
             std::regex_constants::ECMAScript);
 
     source_code = std::regex_replace(source_code, REGEX_WHITESPACE, "", std::regex_constants::match_continuous);
 
     std::smatch matches;
+    std::string match;
 
     std::regex_search(source_code, matches, REGEX_SYMBOL, std::regex_constants::match_continuous);
-    if(_check_matches(matches, source_code)) {
+    match = _check_matches(matches, source_code);
+    if(!match.empty()) {
         token.type = token::type_t::SYMBOL;
-        token.value = token::symbol_t(matches[0].str()[0]);
+        token.value = token::symbol_t(match[0]);
         return true;
     }
 
     std::regex_search(source_code, matches, REGEX_KEYWORD, std::regex_constants::match_continuous);
-    if(_check_matches(matches, source_code)) {
+    match = _check_matches(matches, source_code);
+    if(!match.empty()) {
         token.type = token::type_t::KEYWORD;
-        token.value = KEYWORD_DECODER.at(matches[0].str());
+        token.value = KEYWORD_DECODER.at(match);
+        return true;
+    }
+
+    std::regex_search(source_code, matches, REGEX_INT_CONST, std::regex_constants::match_continuous);
+    match = _check_matches(matches, source_code);
+    if(!match.empty()) {
+        token.type = token::type_t::INT_CONSTANT;
+        token.value = token::int_constant_t(std::stoi(match));
+        return true;
+    }
+
+    std::regex_search(source_code, matches, REGEX_STR_CONST, std::regex_constants::match_continuous);
+    match = _check_matches(matches, source_code);
+    if(!match.empty()) {
+        token.type = token::type_t::STRING_CONSTANT;
+        token.value = token::string_constant_t(match.substr(1, match.size() - 2));
+        return true;
+    }
+
+    std::regex_search(source_code, matches, REGEX_IDENTIFIER, std::regex_constants::match_continuous);
+    match = _check_matches(matches, source_code);
+    if(!match.empty()) {
+        token.type = token::type_t::IDENTIFIER;
+        token.value = token::identifier_t(match);
         return true;
     }
 
     return false;
 }
 
-bool tokenizer::_check_matches(const std::smatch &matches, std::string &source_code) {
-    if(matches.size() > 1)
-        throw tokenizing_error("More than one match");
+std::string tokenizer::_check_matches(const std::smatch &matches, std::string &source_code) {
 
-    if(matches.size() == 1) {
+    if(!matches.empty()) {
+        std::string ret = matches[0].str();
         source_code.erase(matches[0].first, matches[0].second);
-        return true;
+        return ret;
     }
 
-    return false;
+    return "";
+}
+
+void tokenizer::_token_process_symbol(const token::symbol_t & symbol, std::string &str) {
+    switch(symbol) {
+        case '<':
+            str = "&lt;";
+            break;
+        case '>':
+            str = "&gt;";
+            break;
+        default:
+            str = symbol;
+            break;
+    }
 }

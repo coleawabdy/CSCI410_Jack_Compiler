@@ -21,8 +21,9 @@ public:
 private:
     static void _token_to_tag(const token &token, std::string &name, std::string &value);
     static void _token_keyword_to_string(const token::keyword_t&, std::string& str);
+    static void _token_process_symbol(const token::symbol_t&, std::string& str);
 
     static void _source_remove_comments(std::string& source_code);
     static bool _source_next_token(token &token, std::string &source_code);
-    static bool _check_matches(const std::smatch &matches, std::string &source_code);
+    static std::string _check_matches(const std::smatch &matches, std::string &source_code);
 };
