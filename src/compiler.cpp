@@ -24,8 +24,8 @@ void compiler::compile(const std::filesystem::path &source_path) {
         }
 
         // Resolve all futures
-        for(const auto& future : futures)
-            future.wait();
+        for(auto& future : futures)
+            future.get();
 
     } catch(const std::filesystem::filesystem_error& e) {
         throw io_error(e.what(), e.path1());

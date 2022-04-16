@@ -6,30 +6,6 @@
 #include <iostream>
 #include <unordered_map>
 
-const std::unordered_map<std::string, token::keyword_t> KEYWORD_DECODER = {
-        {"class",       token::keyword_t::CLASS},
-        {"method",      token::keyword_t::METHOD},
-        {"function",    token::keyword_t::FUNCTION},
-        {"constructor", token::keyword_t::CONSTRUCTOR},
-        {"int",         token::keyword_t::INT},
-        {"bool",        token::keyword_t::BOOL},
-        {"char",        token::keyword_t::CHAR},
-        {"void",        token::keyword_t::VOID},
-        {"var",         token::keyword_t::VAR},
-        {"static",      token::keyword_t::STATIC},
-        {"field",       token::keyword_t::FIELD},
-        {"let",         token::keyword_t::LET},
-        {"do",          token::keyword_t::DO},
-        {"if",          token::keyword_t::IF},
-        {"else",        token::keyword_t::ELSE},
-        {"while",       token::keyword_t::WHILE},
-        {"return",      token::keyword_t::RETURN},
-        {"true",        token::keyword_t::TRUE},
-        {"false",       token::keyword_t::FALSE},
-        {"null",        token::keyword_t::NUL},
-        {"this",        token::keyword_t::THIS}
-};
-
 void tokenizer::tokenize(std::string &source_code) {
     _tokens.clear();
 
@@ -108,7 +84,7 @@ void tokenizer::_token_keyword_to_string(const token::keyword_t &keyword, std::s
             str = "int";
             break;
         case token::keyword_t::BOOL:
-            str = "bool";
+            str = "boolean";
             break;
         case token::keyword_t::CHAR:
             str = "char";
@@ -160,7 +136,7 @@ void tokenizer::_token_keyword_to_string(const token::keyword_t &keyword, std::s
 
 void tokenizer::_source_remove_comments(std::string &source_code) {
     // Multi line comments
-    auto comment_multiline_ex = std::regex(R"((\/\*.*?\*\/)+)", std::regex_constants::ECMAScript);
+    auto comment_multiline_ex = std::regex(R"(\/\*(\*(?!\/)|[^*])*\*\/)", std::regex_constants::ECMAScript);
     source_code = std::regex_replace(source_code, comment_multiline_ex, "");
 
     // Single line comments
@@ -209,7 +185,7 @@ bool tokenizer::_source_next_token(token &token, std::string &source_code) {
     match = _check_matches(matches, source_code);
     if(!match.empty()) {
         token.type = token::type_t::KEYWORD;
-        token.value = KEYWORD_DECODER.at(match);
+        token.value = _string_to_keyword(match);
         return true;
     }
 
@@ -259,8 +235,58 @@ void tokenizer::_token_process_symbol(const token::symbol_t & symbol, std::strin
         case '>':
             str = "&gt;";
             break;
+        case '&':
+            str = "&amp;";
+            break;
         default:
             str = symbol;
             break;
     }
+}
+
+const token::keyword_t tokenizer::_string_to_keyword(const std::string &str) {
+    if(str == "class")
+        return token::keyword_t::CLASS;
+    else if(str == "method")
+        return token::keyword_t::METHOD;
+    else if(str == "function")
+        return token::keyword_t::FUNCTION;
+    else if(str == "constructor")
+        return token::keyword_t::CONSTRUCTOR;
+    else if(str == "int")
+        return token::keyword_t::INT;
+    else if(str == "boolean")
+        return token::keyword_t::BOOL;
+    else if(str == "char")
+        return token::keyword_t::CHAR;
+    else if(str == "void")
+        return token::keyword_t::VOID;
+    else if(str == "var")
+        return token::keyword_t::VAR;
+    else if(str == "static")
+        return token::keyword_t::STATIC;
+    else if(str == "field")
+        return token::keyword_t::FIELD;
+    else if(str == "let")
+        return token::keyword_t::LET;
+    else if(str == "do")
+        return token::keyword_t::DO;
+    else if(str == "if")
+        return token::keyword_t::IF;
+    else if(str == "else")
+        return token::keyword_t::ELSE;
+    else if(str == "while")
+        return token::keyword_t::WHILE;
+    else if(str == "return")
+        return token::keyword_t::RETURN;
+    else if(str == "true")
+        return token::keyword_t::TRUE;
+    else if(str == "false")
+        return token::keyword_t::FALSE;
+    else if(str == "null")
+        return token::keyword_t::NUL;
+    else if(str == "this")
+        return token::keyword_t::THIS;
+    else
+        throw tokenizing_error("'" + str + "' is not a keyword");
 }

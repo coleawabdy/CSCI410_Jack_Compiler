@@ -26,4 +26,5 @@ private:
     static void _source_remove_comments(std::string& source_code);
     static bool _source_next_token(token &token, std::string &source_code);
     static std::string _check_matches(const std::smatch &matches, std::string &source_code);
+    static const token::keyword_t _string_to_keyword(const std::string& str);
 };
