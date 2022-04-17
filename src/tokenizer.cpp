@@ -1,12 +1,27 @@
 #include "tokenizer.hpp"
-#include "error.hpp"
 
 #include <sstream>
 #include <regex>
 #include <iostream>
 #include <unordered_map>
 
-void tokenizer::tokenize(std::string &source_code) {
+void tokenizer::reset() {
+    _tokens_it = _tokens.cbegin();
+}
+
+const token& tokenizer::next() {
+    return *(_tokens_it++);
+}
+
+const token& tokenizer::peek() {
+    return *_tokens_it;
+}
+
+bool tokenizer::has_next() {
+    return _tokens_it != _tokens.cend();
+}
+
+void tokenizer::run(std::string &source_code) {
     _tokens.clear();
 
     _source_remove_comments(source_code);
@@ -16,36 +31,11 @@ void tokenizer::tokenize(std::string &source_code) {
         _tokens.emplace_back(tk);
 }
 
-std::string tokenizer::to_string() {
-    std::stringstream out;
-
-    out << "<tokens>" << std::endl;
-
-    std::string tag_name, tag_value;
-    for(auto const& token : _tokens) {
-        _token_to_tag(token, tag_name, tag_value);
-
-        out
-            << "<"
-            << tag_name
-            << "> "
-            << tag_value.c_str()
-            << " </"
-            << tag_name
-            << ">"
-            << std::endl;
-    }
-
-    out << "</tokens>" << std::endl;
-
-    return out.str();
-}
-
 void tokenizer::_token_to_tag(const token &token, std::string &name, std::string &value) {
     switch(token.type) {
         case token::type_t::KEYWORD:
             name = "keyword";
-            _token_keyword_to_string(token.get_value<token::keyword_t>(), value);
+            value = token::keyword_to_string(token.get_value<token::keyword_t>());
             break;
         case token::type_t::IDENTIFIER:
             name = "identifier";
@@ -62,74 +52,6 @@ void tokenizer::_token_to_tag(const token &token, std::string &name, std::string
         case token::type_t::INT_CONSTANT:
             name = "integerConstant";
             value = std::to_string(token.get_value<token::int_constant_t>());
-            break;
-    }
-}
-
-void tokenizer::_token_keyword_to_string(const token::keyword_t &keyword, std::string &str) {
-    switch (keyword) {
-        case token::keyword_t::CLASS:
-            str = "class";
-            break;
-        case token::keyword_t::METHOD:
-            str = "method";
-            break;
-        case token::keyword_t::FUNCTION:
-            str = "function";
-            break;
-        case token::keyword_t::CONSTRUCTOR:
-            str = "constructor";
-            break;
-        case token::keyword_t::INT:
-            str = "int";
-            break;
-        case token::keyword_t::BOOL:
-            str = "boolean";
-            break;
-        case token::keyword_t::CHAR:
-            str = "char";
-            break;
-        case token::keyword_t::VOID:
-            str = "void";
-            break;
-        case token::keyword_t::VAR:
-            str = "var";
-            break;
-        case token::keyword_t::STATIC:
-            str = "static";
-            break;
-        case token::keyword_t::FIELD:
-            str = "field";
-            break;
-        case token::keyword_t::LET:
-            str = "let";
-            break;
-        case token::keyword_t::DO:
-            str = "do";
-            break;
-        case token::keyword_t::IF:
-            str = "if";
-            break;
-        case token::keyword_t::ELSE:
-            str = "else";
-            break;
-        case token::keyword_t::WHILE:
-            str = "while";
-            break;
-        case token::keyword_t::RETURN:
-            str = "return";
-            break;
-        case token::keyword_t::TRUE:
-            str = "true";
-            break;
-        case token::keyword_t::FALSE:
-            str = "false";
-            break;
-        case token::keyword_t::NUL:
-            str = "null";
-            break;
-        case token::keyword_t::THIS:
-            str = "this";
             break;
     }
 }
@@ -185,7 +107,7 @@ bool tokenizer::_source_next_token(token &token, std::string &source_code) {
     match = _check_matches(matches, source_code);
     if(!match.empty()) {
         token.type = token::type_t::KEYWORD;
-        token.value = _string_to_keyword(match);
+        token.value = token::keyword_from_string(match);
         return true;
     }
 
@@ -242,51 +164,4 @@ void tokenizer::_token_process_symbol(const token::symbol_t & symbol, std::strin
             str = symbol;
             break;
     }
-}
-
-const token::keyword_t tokenizer::_string_to_keyword(const std::string &str) {
-    if(str == "class")
-        return token::keyword_t::CLASS;
-    else if(str == "method")
-        return token::keyword_t::METHOD;
-    else if(str == "function")
-        return token::keyword_t::FUNCTION;
-    else if(str == "constructor")
-        return token::keyword_t::CONSTRUCTOR;
-    else if(str == "int")
-        return token::keyword_t::INT;
-    else if(str == "boolean")
-        return token::keyword_t::BOOL;
-    else if(str == "char")
-        return token::keyword_t::CHAR;
-    else if(str == "void")
-        return token::keyword_t::VOID;
-    else if(str == "var")
-        return token::keyword_t::VAR;
-    else if(str == "static")
-        return token::keyword_t::STATIC;
-    else if(str == "field")
-        return token::keyword_t::FIELD;
-    else if(str == "let")
-        return token::keyword_t::LET;
-    else if(str == "do")
-        return token::keyword_t::DO;
-    else if(str == "if")
-        return token::keyword_t::IF;
-    else if(str == "else")
-        return token::keyword_t::ELSE;
-    else if(str == "while")
-        return token::keyword_t::WHILE;
-    else if(str == "return")
-        return token::keyword_t::RETURN;
-    else if(str == "true")
-        return token::keyword_t::TRUE;
-    else if(str == "false")
-        return token::keyword_t::FALSE;
-    else if(str == "null")
-        return token::keyword_t::NUL;
-    else if(str == "this")
-        return token::keyword_t::THIS;
-    else
-        throw tokenizing_error("'" + str + "' is not a keyword");
 }

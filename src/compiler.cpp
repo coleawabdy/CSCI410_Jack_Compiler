@@ -1,63 +1,84 @@
 #include "compiler.hpp"
-#include "error.hpp"
 #include "tokenizer.hpp"
+
+#include <tinyxml2.h>
 
 #include <iostream>
 #include <future>
 #include <list>
+#include <fstream>
 
-void compiler::compile(const std::filesystem::path &source_path) {
-    try {
-        if(!std::filesystem::exists(source_path))
-            throw io_error("File/directory does not exist", source_path);
+void compiler::run(std::filesystem::path source_path) {
+    if(!std::filesystem::exists(source_path))
+        throw error(source_path.string() + " does not exist");
 
-        auto path = std::filesystem::canonical(source_path);
-        /*std::filesystem::path output_path = path;
-        output_path += (--output_path.end())->string();
-        output_path.replace_extension(".vm");
-        _output.open(output_path);*/
+    source_path = std::filesystem::canonical(source_path);
 
-        std::list<std::future<void>> futures;
-        for(const auto& entry : std::filesystem::directory_iterator(path)) {
-            if(entry.is_regular_file() && entry.path().extension() == SOURCE_FILE_EXTENSION)
-                futures.push_back(std::async(std::launch::async, &compiler::_process_source_file, this, entry.path()));
+    std::list<std::filesystem::path> source_files;
+    _scan_source_path(source_path, source_files);
+
+    for(const auto& file : source_files) {
+        _contexts.push_back(new context());
+        _contexts.back()->source_file = file;
+    }
+
+    std::vector<std::future<void>> futures;
+    futures.clear();
+    futures.reserve(source_files.size());
+    for(context* ctx : _contexts)
+        futures.push_back(std::async(std::launch::async, _compile, ctx));
+
+    std::list<std::string> errors;
+    for(unsigned int i = 0; i < futures.size(); i++) {
+        try {
+            futures[i].get();
+            delete _contexts[i];
+        } catch(const std::runtime_error& e) {
+            auto file_name = std::filesystem::relative(_contexts[i]->source_file, source_path);
+            errors.emplace_back(std::string("[") + file_name.generic_string() + "]: " + e.what());
         }
+    }
 
-        // Resolve all futures
-        for(auto& future : futures)
-            future.get();
+    if(!errors.empty())
+        throw error(errors);
+}
 
-    } catch(const std::filesystem::filesystem_error& e) {
-        throw io_error(e.what(), e.path1());
+void compiler::_scan_source_path(const std::filesystem::path &source_path, std::list<std::filesystem::path>& source_files) {
+    for(const auto& entry : std::filesystem::directory_iterator(source_path)) {
+        if(entry.is_regular_file() && entry.path().extension() == SOURCE_FILE_EXTENSION)
+            source_files.emplace_back(entry.path());
+#ifndef N2T_COMPLIANT
+        if(entry.is_directory())
+            _scan_source_path(entry.path(), source_files);
+#endif
     }
 }
 
-void compiler::_process_source_file(const std::filesystem::path &source_file_path) {
-    std::string class_name = source_file_path.stem().string();
+void compiler::_compile(compiler::context *ctx) {
+    std::ifstream source_file_stream(ctx->source_file);
 
-    /*
-     * Code segment for reading entire file into string obtained from StackOverflow
-     * https://stackoverflow.com/questions/2912520/read-file-contents-into-a-string-in-c
-     * Solution by Maik Beckmann
-     */
+    if(source_file_stream.fail())
+        throw std::runtime_error("Failed to open file");
 
-    std::ifstream source_file_stream(source_file_path);
-    std::string source_code( (std::istreambuf_iterator<char>(source_file_stream)),
-                         (std::istreambuf_iterator<char>()));
+    std::string source_code((std::istreambuf_iterator<char>(source_file_stream)),(std::istreambuf_iterator<char>()));
 
-    tokenizer tokenize;
-    tokenize(source_code);
+    ctx->tokenizer.run(source_code);
+#if N2T_COMPLIANT == 10
+    ctx->tokenizer.reset();
 
-    std::filesystem::path token_file_path = class_name + "T";
-    token_file_path.replace_extension(".xml");
-    std::fstream token_stream(token_file_path, std::ios::out);
-    token_stream << tokenize.to_string();
-    token_stream.close();
+    tinyxml2::XMLDocument doc;
+    auto tokens = doc.NewElement("tokens");
+    doc.LinkEndChild(tokens);
+    while(ctx->tokenizer.has_next()) {
+        auto token = ctx->tokenizer.next();
+        tokens->InsertNewChildElement(token::type_to_string(token.type).c_str())->InsertNewText(token::to_string(token).c_str());
+    }
+
+    auto tokens_file_path = ctx->source_file.replace_extension("").filename();
+    tokens_file_path += "T.xml";
+
+    doc.SaveFile(tokens_file_path.string().c_str());
+#endif
 }
 
-void compiler::_write_output(const std::list<std::string> &output, const std::string &out_file_name) {
-    std::ofstream out_stream(out_file_name);
 
-    for(const auto& line : output)
-        out_stream << line << std::endl;
-}

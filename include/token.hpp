@@ -51,4 +51,10 @@ struct token {
     inline const Return& get_value() const {
         return std::get<Return>(value);
     }
+
+    static keyword_t keyword_from_string(const std::string& str);
+
+    static std::string type_to_string(type_t type);
+    static std::string keyword_to_string(keyword_t keyword);
+    static std::string to_string(const token &value);
 };

@@ -1,5 +1,4 @@
 #include "compiler.hpp"
-#include "error.hpp"
 
 #include <iostream>
 
@@ -11,12 +10,13 @@ int main(int argc, char** argv) {
         std::cerr << "Only 1 argument allowed" << std::endl;
     }
 
-    compiler compile;
+    compiler compiler;
 
     try {
-        compile(argv[1]);
-    } catch(const io_error& e) {
-        std::cerr << "I/O Error (" << e.get_filename().stem().string() << "): " << e.what();
+        compiler.run(argv[1]);
+    } catch(const compiler::error& e) {
+        std::cerr << e.what() << std::endl;
+        return 1;
     }
 
     return 0;
