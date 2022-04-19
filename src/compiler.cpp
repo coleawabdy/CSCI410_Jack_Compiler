@@ -1,7 +1,9 @@
 #include "compiler.hpp"
 #include "tokenizer.hpp"
 
-#include <tinyxml2.h>
+#if N2T_COMPLIANT == 10
+    #include <tinyxml2.h>
+#endif
 
 #include <iostream>
 #include <future>
@@ -56,6 +58,7 @@ void compiler::_scan_source_path(const std::filesystem::path &source_path, std::
 
 void compiler::_compile(compiler::context *ctx) {
     std::ifstream source_file_stream(ctx->source_file);
+    auto class_name = ctx->source_file.replace_extension("").filename();
 
     if(source_file_stream.fail())
         throw std::runtime_error("Failed to open file");
@@ -63,6 +66,7 @@ void compiler::_compile(compiler::context *ctx) {
     std::string source_code((std::istreambuf_iterator<char>(source_file_stream)),(std::istreambuf_iterator<char>()));
 
     ctx->tokenizer.run(source_code);
+
 #if N2T_COMPLIANT == 10
     ctx->tokenizer.reset();
 
@@ -74,10 +78,20 @@ void compiler::_compile(compiler::context *ctx) {
         tokens->InsertNewChildElement(token::type_to_string(token.type).c_str())->InsertNewText(token::to_string(token).c_str());
     }
 
-    auto tokens_file_path = ctx->source_file.replace_extension("").filename();
-    tokens_file_path += "T.xml";
+    auto tokens_file_path = class_name.generic_string() + "T.xml";
+    doc.SaveFile(tokens_file_path.c_str());
+#endif
 
-    doc.SaveFile(tokens_file_path.string().c_str());
+    ctx->lexer.run(ctx->tokenizer);
+
+#if N2T_COMPLIANT == 10
+    auto lexed_file_path = class_name.generic_string() + ".xml";
+    std::ofstream lexed_xml_file;
+    lexed_xml_file.open(lexed_file_path);
+    tinyxml2::XMLPrinter printer(0, false, 0);
+    ctx->lexer.get_document()->Print(&printer);
+    lexed_xml_file << printer.CStr();
+    lexed_xml_file.close();
 #endif
 }
 

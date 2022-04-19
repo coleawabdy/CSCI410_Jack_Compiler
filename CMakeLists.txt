@@ -28,7 +28,8 @@ set(COMPILER_SOURCES
         src/main.cpp
         src/token.cpp
         src/compiler.cpp
-        src/tokenizer.cpp)
+        src/tokenizer.cpp
+        src/lexer.cpp)
 
 add_executable(${COMPILER_TARGET} ${COMPILER_SOURCES})
 

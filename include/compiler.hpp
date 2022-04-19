@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tokenizer.hpp"
+#include "lexer.hpp"
 
 #include <filesystem>
 
@@ -43,6 +44,7 @@ private:
     struct context {
         std::filesystem::path source_file;
         tokenizer tokenizer;
+        lexer lexer;
     };
 
     std::vector<context*> _contexts;
