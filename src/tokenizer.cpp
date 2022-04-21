@@ -13,8 +13,11 @@ const token& tokenizer::next() {
     return *(_tokens_it++);
 }
 
-const token& tokenizer::peek() {
-    return *_tokens_it;
+const token& tokenizer::peek(uint32_t offset) {
+    auto tk = _tokens_it;
+    for(auto i = 0; i < offset; i++)
+        tk++;
+    return *tk;
 }
 
 bool tokenizer::has_next() {
@@ -29,31 +32,6 @@ void tokenizer::run(std::string &source_code) {
     token tk;
     while(_source_next_token(tk, source_code))
         _tokens.emplace_back(tk);
-}
-
-void tokenizer::_token_to_tag(const token &token, std::string &name, std::string &value) {
-    switch(token.type) {
-        case token::type_t::KEYWORD:
-            name = "keyword";
-            value = token::keyword_to_string(token.get_value<token::keyword_t>());
-            break;
-        case token::type_t::IDENTIFIER:
-            name = "identifier";
-            value = token.get_value<token::identifier_t>();
-            break;
-        case token::type_t::SYMBOL:
-            name = "symbol";
-            _token_process_symbol( token.get_value<token::symbol_t>(), value);
-            break;
-        case token::type_t::STRING_CONSTANT:
-            name = "stringConstant";
-            value = token.get_value<token::string_constant_t>();
-            break;
-        case token::type_t::INT_CONSTANT:
-            name = "integerConstant";
-            value = std::to_string(token.get_value<token::int_constant_t>());
-            break;
-    }
 }
 
 void tokenizer::_source_remove_comments(std::string &source_code) {

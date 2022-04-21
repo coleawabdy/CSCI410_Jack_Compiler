@@ -21,11 +21,7 @@ void lexer::run(tokenizer &tokenizer) {
     _document->Clear();
 #endif
 
-    _compile_class();
-}
-
-void lexer::_compile_class_variable_declaration() {
-
+    _parse_class();
 }
 
 bool lexer::_check_token(token::type_t type) {
@@ -69,6 +65,26 @@ bool lexer::_check_type_voidable() {
     return false;
 }
 
+bool lexer::_check_op() {
+    auto peek = _tokenizer->peek();
+    if(peek.type == token::type_t::SYMBOL) {
+        auto val = peek.get_value<token::symbol_t>();
+        return val == '+' || val == '-' || val == '*' || val == '/' || val == '&' || val == '|' || val == '<' || val == '>' || val == '=';
+    }
+
+    return false;
+}
+
+bool lexer::_check_unary_op() {
+    auto peek = _tokenizer->peek();
+    if(peek.type == token::type_t::SYMBOL) {
+        auto val = peek.get_value<token::symbol_t>();
+        return val == '-' || val == '~';
+    }
+
+    return false;
+}
+
 token lexer::_expect_token(token::type_t expected_type) {
     if(!_check_token(expected_type))
         throw std::runtime_error("Expected token '" + token::type_to_string(expected_type) + "' got '" + token::type_to_string(_tokenizer->peek().type) + "'");
@@ -108,7 +124,21 @@ token lexer::_expect_type_voidable() {
     return _tokenizer->next();
 }
 
-void lexer::_compile_class() {
+token lexer::_expect_op() {
+    if(!_check_op())
+        throw std::runtime_error("Expected an operator");
+
+    return _tokenizer->next();
+}
+
+token lexer::_expect_unary_op() {
+    if(!_check_unary_op())
+        throw std::runtime_error("Expected unary op");
+
+    return _tokenizer->next();
+}
+
+void lexer::_parse_class() {
 #if N2T_COMPLIANT == 10
     if (_parent_element == nullptr) {
         _parent_element = _document->NewElement("class");
@@ -126,16 +156,15 @@ void lexer::_compile_class() {
     _expect_token(token::type_t::SYMBOL, '{');
     XML_ELEMENT_TEXT("symbol", "{");
 
-
     while (true) {
         auto peek = _tokenizer->peek();
         if (peek.type == token::type_t::KEYWORD) {
             auto val = peek.get_value<token::keyword_t>();
             if (val == token::keyword_t::FUNCTION || val == token::keyword_t::CONSTRUCTOR ||
                 val == token::keyword_t::METHOD)
-                _compile_class_subroutine_declaration();
+                _parse_subroutine_declaration();
             else if (val == token::keyword_t::STATIC || val == token::keyword_t::FIELD)
-                _compile_class_variable_declaration();
+                _parse_class_variable_declaration();
             else
                 break;
         } else
@@ -146,7 +175,7 @@ void lexer::_compile_class() {
     XML_ELEMENT_TEXT("symbol", "}");
 }
 
-void lexer::_compile_class_subroutine_declaration() {
+void lexer::_parse_subroutine_declaration() {
     XML_ENTER(XML_ELEMENT("subroutineDec"));
 
     auto subroutine = _expect_subroutine();
@@ -162,13 +191,13 @@ void lexer::_compile_class_subroutine_declaration() {
     auto identifier = _expect_token(token::type_t::IDENTIFIER);
     XML_ELEMENT_TEXT("identifier", identifier.get_value<token::identifier_t>().c_str());
 
-    _compile_class_subroutine_parameter_list();
-    _compile_class_subroutine_body();
+    _parse_class_subroutine_parameter_list();
+    _parse_class_subroutine_body();
 
     XML_EXIT
 }
 
-void lexer::_compile_class_subroutine_parameter_list() {
+void lexer::_parse_class_subroutine_parameter_list() {
     _expect_token(token::type_t::SYMBOL, '(');
     XML_ELEMENT_TEXT("symbol", "(");
 
@@ -200,7 +229,7 @@ void lexer::_compile_class_subroutine_parameter_list() {
 
 #if N2T_COMPLIANT == 10
     if(_parent_element->NoChildren())
-        _parent_element->ToElement()->InsertNewText("");
+        _parent_element->ToElement()->InsertNewText("\n");
 #endif
 
     XML_EXIT
@@ -209,14 +238,14 @@ void lexer::_compile_class_subroutine_parameter_list() {
     XML_ELEMENT_TEXT("symbol", ")");
 }
 
-void lexer::_compile_class_subroutine_body() {
+void lexer::_parse_class_subroutine_body() {
     XML_ENTER(XML_ELEMENT("subroutineBody"));
 
     _expect_token(token::type_t::SYMBOL, '{');
     XML_ELEMENT_TEXT("symbol", "{");
 
-    _compile_variable_declarations();
-    _compile_statements();
+    _parse_variable_declarations();
+    _parse_statements();
 
     _expect_token(token::type_t::SYMBOL, '}');
     XML_ELEMENT_TEXT("symbol", "}");
@@ -224,7 +253,38 @@ void lexer::_compile_class_subroutine_body() {
     XML_EXIT
 }
 
-void lexer::_compile_variable_declarations() {
+void lexer::_parse_class_variable_declaration() {
+    XML_ENTER(XML_ELEMENT("classVarDec"));
+
+    if(_check_token(token::type_t::KEYWORD, token::keyword_t::STATIC)) {
+        _expect_token(token::type_t::KEYWORD, token::keyword_t::STATIC);
+        XML_ELEMENT_TEXT("keyword", "static");
+    } else if(_check_token(token::type_t::KEYWORD, token::keyword_t::FIELD)) {
+        _expect_token(token::type_t::KEYWORD, token::keyword_t::FIELD);
+        XML_ELEMENT_TEXT("keyword", "field");
+    }
+
+    auto type = _expect_type();
+    XML_ELEMENT_TEXT(token::type_to_string(type.type).c_str(), token::to_string(type).c_str());
+
+    auto identifier = _expect_token(token::type_t::IDENTIFIER);
+    XML_ELEMENT_TEXT("identifier", token::to_string(identifier).c_str());
+
+    while(_check_token(token::type_t::SYMBOL, ',')) {
+        _expect_token(token::type_t::SYMBOL, ',');
+        XML_ELEMENT_TEXT("symbol", ",");
+
+        identifier = _expect_token(token::type_t::IDENTIFIER);
+        XML_ELEMENT_TEXT("identifier", token::to_string(identifier).c_str());
+    }
+
+    _expect_token(token::type_t::SYMBOL, ';');
+    XML_ELEMENT_TEXT("symbol", ";");
+
+    XML_EXIT
+}
+
+void lexer::_parse_variable_declarations() {
     while(_check_token(token::type_t::KEYWORD, token::keyword_t::VAR)) {
         XML_ENTER(XML_ELEMENT("varDec"));
 
@@ -238,8 +298,10 @@ void lexer::_compile_variable_declarations() {
             auto identifier = _expect_token(token::type_t::IDENTIFIER);
             XML_ELEMENT_TEXT("identifier", identifier.get_value<token::identifier_t>().c_str());
 
-            if(_check_token(token::type_t::SYMBOL, ','))
+            if (_check_token(token::type_t::SYMBOL, ',')) {
                 _expect_token(token::type_t::SYMBOL, ',');
+            XML_ELEMENT_TEXT("symbol", ",");
+            }
             else
                 break;
         }
@@ -251,28 +313,33 @@ void lexer::_compile_variable_declarations() {
     }
 }
 
-void lexer::_compile_statements() {
+void lexer::_parse_statements() {
     XML_ENTER(XML_ELEMENT("statements"));
 
     while(true) {
-        if(_check_token(token::type_t::KEYWORD, "let"))
-            _compile_let_statement();
-        else if(_check_token(token::type_t::KEYWORD, "if"))
-            _compile_if_statement();
-        else if(_check_token(token::type_t::KEYWORD, "while"))
-            _compile_while_statement();
-        else if(_check_token(token::type_t::KEYWORD, "do"))
-            _compile_do_statement();
-        else if(_check_token(token::type_t::KEYWORD, "return"))
-            _compile_return_statement();
+        if(_check_token(token::type_t::KEYWORD, token::keyword_t::LET))
+            _parse_let_statement();
+        else if(_check_token(token::type_t::KEYWORD, token::keyword_t::IF))
+            _parse_if_statement();
+        else if(_check_token(token::type_t::KEYWORD, token::keyword_t::WHILE))
+            _parse_while_statement();
+        else if(_check_token(token::type_t::KEYWORD, token::keyword_t::DO))
+            _parse_do_statement();
+        else if(_check_token(token::type_t::KEYWORD, token::keyword_t::RETURN))
+            _parse_return_statement();
         else
             break;
     }
 
+#if N2T_COMPLIANT == 10
+    if(_parent_element->NoChildren())
+        _parent_element->ToElement()->InsertNewText("\n");
+#endif
+
     XML_EXIT
 }
 
-void lexer::_compile_let_statement() {
+void lexer::_parse_let_statement() {
     XML_ENTER(XML_ELEMENT("letStatement"));
 
     _expect_token(token::type_t::KEYWORD, token::keyword_t::LET);
@@ -285,53 +352,217 @@ void lexer::_compile_let_statement() {
         _expect_token(token::type_t::SYMBOL, '[');
         XML_ELEMENT_TEXT("symbol", "[");
 
-        _compile_expression();
+        _parse_expression();
 
         _expect_token(token::type_t::SYMBOL, ']');
         XML_ELEMENT_TEXT("symbol", "]");
     }
 
-    XML_ELEMENT_TOKEN(_expect_token(token::type_t::SYMBOL, '='));
+    _expect_token(token::type_t::SYMBOL, '=');
+    XML_ELEMENT_TEXT("symbol", "=");
 
-    _compile_expression();
+    _parse_expression();
 
-    XML_ELEMENT_TOKEN(_expect_token(token::type_t::SYMBOL, ';'));
+    _expect_token(token::type_t::SYMBOL, ';');
+    XML_ELEMENT_TEXT("symbol", ";");
 
     XML_EXIT
 }
 
-void lexer::_compile_if_statement() {
+void lexer::_parse_if_statement() {
     XML_ENTER(XML_ELEMENT("ifStatement"));
 
+    _expect_token(token::type_t::KEYWORD, token::keyword_t::IF);
+    XML_ELEMENT_TEXT("keyword", "if");
 
+    _expect_token(token::type_t::SYMBOL, '(');
+    XML_ELEMENT_TEXT("symbol", "(");
+
+    _parse_expression();
+
+    _expect_token(token::type_t::SYMBOL, ')');
+    XML_ELEMENT_TEXT("symbol", ")");
+
+    _expect_token(token::type_t::SYMBOL, '{');
+    XML_ELEMENT_TEXT("symbol", "{");
+
+    _parse_statements();
+
+    _expect_token(token::type_t::SYMBOL, '}');
+    XML_ELEMENT_TEXT("symbol", "}");
+
+    if(_check_token(token::type_t::KEYWORD, token::keyword_t::ELSE)) {
+        _expect_token(token::type_t::KEYWORD, token::keyword_t::ELSE);
+        XML_ELEMENT_TEXT("keyword", "else");
+
+        _expect_token(token::type_t::SYMBOL, '{');
+        XML_ELEMENT_TEXT("symbol", "{");
+
+        _parse_statements();
+
+        _expect_token(token::type_t::SYMBOL, '}');
+        XML_ELEMENT_TEXT("symbol", "}");
+    }
 
     XML_EXIT
 }
 
-void lexer::_compile_while_statement() {
+void lexer::_parse_while_statement() {
     XML_ENTER(XML_ELEMENT("whileStatement"));
 
+    _expect_token(token::type_t::KEYWORD, token::keyword_t::WHILE);
+    XML_ELEMENT_TEXT("keyword", "while");
 
+    _expect_token(token::type_t::SYMBOL, '(');
+    XML_ELEMENT_TEXT("symbol", "(");
+
+    _parse_expression();
+
+    _expect_token(token::type_t::SYMBOL, ')');
+    XML_ELEMENT_TEXT("symbol", ")");
+
+    _expect_token(token::type_t::SYMBOL, '{');
+    XML_ELEMENT_TEXT("symbol", "{");
+
+    _parse_statements();
+
+    _expect_token(token::type_t::SYMBOL, '}');
+    XML_ELEMENT_TEXT("symbol", "}");
 
     XML_EXIT
 }
 
-void lexer::_compile_do_statement() {
+void lexer::_parse_do_statement() {
     XML_ENTER(XML_ELEMENT("doStatement"));
 
+    _expect_token(token::type_t::KEYWORD, token::keyword_t::DO);
+    XML_ELEMENT_TEXT("keyword", "do");
 
+    _parse_subroutine_call();
+
+    _expect_token(token::type_t::SYMBOL, ';');
+    XML_ELEMENT_TEXT("symbol", ";");
 
     XML_EXIT
 }
 
-void lexer::_compile_return_statement() {
+void lexer::_parse_return_statement() {
     XML_ENTER(XML_ELEMENT("returnStatement"));
 
+    _expect_token(token::type_t::KEYWORD, token::keyword_t::RETURN);
+    XML_ELEMENT_TEXT("keyword", "return");
 
+    if(!_check_token(token::type_t::SYMBOL, ';'))
+        _parse_expression();
+
+    _expect_token(token::type_t::SYMBOL, ';');
+    XML_ELEMENT_TEXT("symbol", ";");
 
     XML_EXIT
 }
 
-void lexer::_compile_expression() {
+void lexer::_parse_expression() {
+    XML_ENTER(XML_ELEMENT("expression"));
 
+    _parse_term();
+
+    while(true) {
+        if(!_check_op())
+            break;
+
+        auto op = _expect_op();
+        XML_ELEMENT_TEXT("symbol", token::to_string(op).c_str());
+
+        _parse_term();
+    }
+
+    XML_EXIT
+}
+
+void lexer::_parse_subroutine_call() {
+    auto identifier = _expect_token(token::type_t::IDENTIFIER);
+    XML_ELEMENT_TEXT("identifier", token::to_string(identifier).c_str());
+
+    if(_check_token(token::type_t::SYMBOL, '.')) {
+        _expect_token(token::type_t::SYMBOL, '.');
+        XML_ELEMENT_TEXT("symbol", ".");
+
+        auto iden2 = _expect_token(token::type_t::IDENTIFIER);
+        XML_ELEMENT_TEXT("identifier", token::to_string(iden2).c_str());
+    }
+
+    _expect_token(token::type_t::SYMBOL, '(');
+    XML_ELEMENT_TEXT("symbol", "(");
+
+    XML_ENTER(XML_ELEMENT("expressionList"));
+    if(!_check_token(token::type_t::SYMBOL, ')')) {
+        _parse_expression();
+
+        while (_check_token(token::type_t::SYMBOL, ',')) {
+            _expect_token(token::type_t::SYMBOL, ',');
+            XML_ELEMENT_TEXT("symbol", ",");
+
+            _parse_expression();
+        }
+    }
+#if N2T_COMPLIANT == 10
+    else  {
+        _parent_element->ToElement()->InsertNewText("\n");
+    }
+#endif
+    XML_EXIT
+
+    _expect_token(token::type_t::SYMBOL, ')');
+    XML_ELEMENT_TEXT("symbol", ")");
+}
+
+void lexer::_parse_term() {
+    XML_ENTER(XML_ELEMENT("term"));
+
+    if(_check_token(token::type_t::INT_CONSTANT)) {
+        auto c = _expect_token(token::type_t::INT_CONSTANT);
+        XML_ELEMENT_TEXT("integerConstant", token::to_string(c).c_str());
+    } else if(_check_token(token::type_t::STRING_CONSTANT)) {
+        auto str = _expect_token(token::type_t::STRING_CONSTANT);
+        XML_ELEMENT_TEXT("stringConstant", token::to_string(str).c_str());
+    } else if(_check_token(token::type_t::KEYWORD, token::keyword_t::FALSE)
+            || _check_token(token::type_t::KEYWORD, token::keyword_t::TRUE)
+            || _check_token(token::type_t::KEYWORD, token::keyword_t::NUL)
+            || _check_token(token::type_t::KEYWORD, token::keyword_t::THIS)) {
+        auto keyword = _expect_token(token::type_t::KEYWORD);
+        XML_ELEMENT_TEXT("keyword", token::to_string(keyword).c_str());
+    } else if(_check_token(token::type_t::IDENTIFIER)) {
+        auto peek1 = _tokenizer->peek(1);
+        if(peek1.type == token::type_t::SYMBOL && peek1.get_value<token::symbol_t>() == '(' || peek1.get_value<token::symbol_t>() == '.') {
+            _parse_subroutine_call();
+        } else {
+            auto identifier = _expect_token(token::type_t::IDENTIFIER);
+            XML_ELEMENT_TEXT("identifier", token::to_string(identifier).c_str());
+
+            if(_check_token(token::type_t::SYMBOL, '[')) {
+                _expect_token(token::type_t::SYMBOL, '[');
+                XML_ELEMENT_TEXT("symbol", "[");
+
+                _parse_expression();
+
+                _expect_token(token::type_t::SYMBOL, ']');
+                XML_ELEMENT_TEXT("symbol", "]");
+            }
+        }
+    } else if(_check_token(token::type_t::SYMBOL, '(')) {
+        _expect_token(token::type_t::SYMBOL, '(');
+        XML_ELEMENT_TEXT("symbol", "(");
+
+        _parse_expression();
+
+        _expect_token(token::type_t::SYMBOL, ')');
+        XML_ELEMENT_TEXT("symbol", ")");
+    } else if(_check_unary_op()) {
+        auto op = _expect_unary_op();
+        XML_ELEMENT_TEXT("symbol", token::to_string(op).c_str());
+
+        _parse_term();
+    } else
+        throw std::runtime_error("No valid term could be found");
+    XML_EXIT
 }

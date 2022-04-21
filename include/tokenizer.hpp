@@ -18,10 +18,9 @@ public:
 
     void reset();
     const token& next();
-    const token& peek();
+    const token& peek(uint32_t offset = 0);
     bool has_next();
 private:
-    static void _token_to_tag(const token &token, std::string &name, std::string &value);
     static void _token_process_symbol(const token::symbol_t&, std::string& str);
 
     static void _source_remove_comments(std::string& source_code);
