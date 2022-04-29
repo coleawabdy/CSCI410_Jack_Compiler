@@ -6,14 +6,16 @@ include(CMakeDependentOption)
 include(FetchContent)
 
 # Options
-cmake_dependent_option(N2T_COMPLIANT_PROJECT_10 "Compliance with specifications of nand2tetris project 10" ON "NOT N2T_COMPLIANT_PROJECT_11" OFF)
+cmake_dependent_option(N2T_COMPLIANT_PROJECT_10 "Compliance with specifications of nand2tetris project 10" OFF "NOT N2T_COMPLIANT_PROJECT_11" OFF)
 cmake_dependent_option(N2T_COMPLIANT_PROJECT_11 "Compliance with specifications of nand2tetris project 11" OFF "NOT N2T_COMPLIANT_PROJECT_10" OFF)
 
 # TinyXML2
+if(${N2T_COMPLIANT_PROJECT_10} EQUALS ON)
 FetchContent_Declare(tinyxml2
         GIT_REPOSITORY  https://github.com/leethomason/TinyXML2.git
         GIT_TAG         9.0.0)
 FetchContent_MakeAvailable(tinyxml2)
+endif()
 
 # CXX Parameters
 set(CMAKE_CXX_STANDARD 17)
