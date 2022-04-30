@@ -2,8 +2,11 @@
 
 #include "tokenizer.hpp"
 #include "lexer.hpp"
+#include "generator.hpp"
 
 #include <filesystem>
+#include <mutex>
+#include <fstream>
 
 class compiler {
 public:
@@ -45,8 +48,11 @@ private:
         std::filesystem::path source_file;
         tokenizer tokenizer;
         lexer lexer;
+        generator generator;
     };
 
+    std::mutex _output_mtx;
+    std::ofstream _output_stream;
     std::vector<context*> _contexts;
 public:
     compiler() = default;
