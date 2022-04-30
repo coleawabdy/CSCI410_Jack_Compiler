@@ -43,16 +43,16 @@ public:
     };
 
     const std::string SOURCE_FILE_EXTENSION = ".jack";
+    const std::string OUTPUT_FILE_EXTENSION = ".vm";
 private:
     struct context {
-        std::filesystem::path source_file;
+        std::filesystem::path source_path;
+        std::filesystem::path output_path;
         tokenizer tokenizer;
         lexer lexer;
         generator generator;
     };
 
-    std::mutex _output_mtx;
-    std::ofstream _output_stream;
     std::vector<context*> _contexts;
 public:
     compiler() = default;

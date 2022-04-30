@@ -19,14 +19,19 @@ void compiler::run(std::filesystem::path source_path) {
     _scan_source_path(source_path, source_files);
 
     for(const auto& file : source_files) {
-        _contexts.push_back(new context());
-        _contexts.back()->source_file = file;
+        auto ctx = new context();
+
+        auto output_file = file;
+        output_file.replace_extension(OUTPUT_FILE_EXTENSION);
+        output_file = output_file.filename();
+
+        ctx->source_path = file;
+        ctx->output_path = source_path / output_file;
+
+        _contexts.push_back(ctx);
     }
 
-    auto output_path = source_path;
-    output_path /= (--output_path.end())->generic_string();
-    output_path.replace_extension(".vm");
-    _output_stream.open(output_path);
+    generator::reset();
 
     std::vector<std::future<void>> futures;
     futures.clear();
@@ -40,7 +45,7 @@ void compiler::run(std::filesystem::path source_path) {
             futures[i].get();
             delete _contexts[i];
         } catch(const std::runtime_error& e) {
-            auto file_name = std::filesystem::relative(_contexts[i]->source_file, source_path);
+            auto file_name = std::filesystem::relative(_contexts[i]->source_path, source_path);
             errors.emplace_back(std::string("[") + file_name.generic_string() + "]: " + e.what());
         }
     }
@@ -57,8 +62,7 @@ void compiler::_scan_source_path(const std::filesystem::path &source_path, std::
 }
 
 void compiler::_compile(compiler::context *ctx) {
-    std::ifstream source_file_stream(ctx->source_file);
-    auto class_name = ctx->source_file.replace_extension("").filename();
+    std::ifstream source_file_stream(ctx->source_path);
 
     if(source_file_stream.fail())
         throw std::runtime_error("Failed to open file");
@@ -66,11 +70,10 @@ void compiler::_compile(compiler::context *ctx) {
     std::string source_code((std::istreambuf_iterator<char>(source_file_stream)),(std::istreambuf_iterator<char>()));
 
     ctx->tokenizer.run(source_code);
-
     ctx->lexer.run(ctx->tokenizer);
+    ctx->generator.run(ctx->lexer.get_class());
 
-    auto output_file_path = class_name.generic_string() + ".vm";
-    std::ofstream output_file(output_file_path);
+    std::ofstream output_file(ctx->output_path);
 
     for(const auto& line : ctx->generator.get_vm_code())
         output_file << line << std::endl;
