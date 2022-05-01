@@ -18,6 +18,7 @@ private:
 
     uint16_t _next_this_index = 0;
     uint16_t _next_local_index = 0;
+    uint16_t _next_label = 0;
 public:
     generator() = default;
     ~generator() = default;

@@ -4,7 +4,7 @@
 
 #include <stdexcept>
 
-#define GEN_DYNAMIC(code) _vm_code.emplace_back(code);
+#define GEN_DYNAMIC(fmt_str, ...) _vm_code.emplace_back(fmt::format(#fmt_str, __VA_ARGS__));
 #define GEN(code) _vm_code.emplace_back(#code);
 
 std::atomic_uint16_t generator::_next_static_index = 0;
@@ -43,7 +43,7 @@ void generator::_generate_subroutine(const ast_class_subroutine &subroutine) {
         }
     }
 
-    GEN_DYNAMIC(fmt::format("function {}.{} {}", _top_level->identifier, subroutine.identifier, subroutine.locals.size()))
+    GEN_DYNAMIC(function {}.{} {}, _top_level->identifier, subroutine.identifier, _subroutine_symbols.size())
 
     _generate_statements(subroutine.statements);
 }
@@ -53,18 +53,32 @@ void generator::_generate_if_statement(const ast_statement_if *if_statement) {
 }
 
 void generator::_generate_let_statement(const ast_statement_let *let_statement) {
-
-    _generate_expression(let_statement->assignment);
-
     if(let_statement->array_access.has_value()) {
-
+        GEN_DYNAMIC(push {}, _get_symbol(let_statement->identifier).to_string())
+        _generate_expression(let_statement->array_access.value());
+        GEN(add)
+        GEN(pop temp 0)
+        _generate_expression(let_statement->assignment);
+        GEN(push temp 0)
+        GEN(pop pointer 1)
+        GEN(pop that 0)
     } else {
-        GEN_DYNAMIC(fmt::format("pop {}", _get_symbol(let_statement->identifier).to_string()))
+        _generate_expression(let_statement->assignment);
+        GEN_DYNAMIC(pop {}, _get_symbol(let_statement->identifier).to_string())
     }
 }
 
 void generator::_generate_while_statement(const ast_statement_while *while_statement) {
-
+    auto label_num = _next_label++;
+    auto begin_label = fmt::format("WHILE_BEGIN_{}", label_num);
+    auto end_label = fmt::format("WHILE_END_{}", label_num);
+    GEN_DYNAMIC(label {}, begin_label)
+    _generate_expression(while_statement->conditional);
+    GEN(not)
+    GEN_DYNAMIC(if-goto {}, end_label)
+    _generate_statements(while_statement->statements);
+    GEN_DYNAMIC(goto {}, begin_label)
+    GEN_DYNAMIC(label {}, end_label)
 }
 
 void generator::_generate_return_statement(const ast_statement_return *return_statement) {
@@ -138,10 +152,18 @@ void generator::_generate_expression(const ast_expression &expression) {
 void generator::_generate_term(const ast_term *term) {
     switch(term->type) {
         case ast_term::type_t::INTEGER:
-            GEN_DYNAMIC(fmt::format("push constant {}", ((ast_term_integer*)term)->value))
+            GEN_DYNAMIC(push constant {}, ((ast_term_integer*)term)->value)
             break;
-        case ast_term::type_t::STRING:
+        case ast_term::type_t::STRING: {
+            auto str_term = (ast_term_string*)term;
+            GEN_DYNAMIC(push constant {}, str_term->value.length())
+            GEN(call String.new 1)
+            for(const auto& ch : str_term->value) {
+                GEN_DYNAMIC(push constant {}, (uint16_t)ch)
+                GEN(call String.appendChar 2)
+            }
             break;
+        }
         case ast_term::type_t::NUL:
             break;
         case ast_term::type_t::THIS:
@@ -150,16 +172,27 @@ void generator::_generate_term(const ast_term *term) {
             break;
         case ast_term::type_t::FALSE:
             break;
-        case ast_term::type_t::VARIABLE:
+        case ast_term::type_t::VARIABLE: {
+            auto var_term = (ast_term_variable*)term;
+            GEN_DYNAMIC(push {}, _get_symbol(var_term->identifier).to_string());
             break;
-        case ast_term::type_t::ARRAY:
+        }
+        case ast_term::type_t::ARRAY: {
+            auto array_term = (ast_term_array*)term;
+            GEN_DYNAMIC(push {}, _get_symbol(array_term->identifier).to_string())
+            _generate_expression(array_term->access);
+            GEN(add)
+            GEN(pop pointer 1)
+            GEN(push that 0)
             break;
+        }
         case ast_term::type_t::EXPRESSION:
             _generate_expression(((ast_term_expression*)term)->expression);
             break;
         case ast_term::type_t::UNARY:
             break;
         case ast_term::type_t::SUBROUTINE_CALL:
+            _generate_subroutine_call(((ast_term_subroutine_call*)term)->call);
             break;
     }
 }
@@ -175,7 +208,7 @@ void generator::_generate_subroutine_call(const ast_subroutine_call call) {
         if(symbol.has_value()) {
 
         } else {
-            GEN_DYNAMIC(fmt::format("call {}.{} {}", call.callee_identifier.value(), call.subroutine_identifier, call.arguments.size()))
+            GEN_DYNAMIC(call {}.{} {}, call.callee_identifier.value(), call.subroutine_identifier, call.arguments.size())
         }
     }
 }
