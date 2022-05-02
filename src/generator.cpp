@@ -11,7 +11,6 @@ std::atomic_uint16_t generator::_next_static_index = 0;
 
 void generator::run(ast_class *ast) {
     _next_this_index = 0;
-
     _top_level = ast;
 
     for(const auto& var : ast->variables) {
@@ -20,9 +19,9 @@ void generator::run(ast_class *ast) {
                 throw std::runtime_error("duplicate identifier '" + identifier + "'");
 
             if(var.is_static)
-                _global_symbols[identifier] = symbol(symbol::segment_t::STATIC, _get_next_static_index());
+                _global_symbols[identifier] = symbol(symbol::segment_t::STATIC, _get_next_static_index(), var.type);
             else
-                _global_symbols[identifier] = symbol(symbol::segment_t::THIS, _next_this_index++);
+                _global_symbols[identifier] = symbol(symbol::segment_t::THIS, _next_this_index++, var.type);
         }
     }
 
@@ -33,23 +32,48 @@ void generator::run(ast_class *ast) {
 void generator::_generate_subroutine(const ast_class_subroutine &subroutine) {
     _subroutine_symbols.clear();
     _next_local_index = 0;
+    _next_arg_index = subroutine.type == ast_class_subroutine::type_t::METHOD ? 1 : 0;
 
     for(const auto& local : subroutine.locals) {
         for(const auto& identifier : local.identifiers) {
-            if(_global_symbols.count(identifier) > 0 || _subroutine_symbols.count(identifier))
+            if(_global_symbols.count(identifier) > 0 || _subroutine_symbols.count(identifier) > 0)
                 throw std::runtime_error("duplicate identifier '" + identifier + "'");
 
-            _subroutine_symbols[identifier] = symbol(symbol::segment_t::LOCAL, _next_local_index++);
+            _subroutine_symbols[identifier] = symbol(symbol::segment_t::LOCAL, _next_local_index++, local.type);
         }
     }
 
     GEN_DYNAMIC(function {}.{} {}, _top_level->identifier, subroutine.identifier, _subroutine_symbols.size())
+    if(subroutine.type == ast_class_subroutine::type_t::METHOD) {
+        GEN(push argument 0)
+        GEN(pop pointer 0)
+    } else if(subroutine.type == ast_class_subroutine::type_t::CONSTRUCTOR) {
+        GEN_DYNAMIC(push constant {}, _next_this_index)
+        GEN(call Memory.alloc 1)
+        GEN(pop pointer 0)
+    }
+
+    for(const auto& arg : subroutine.parameters) {
+        if(_global_symbols.count(arg.identifier) > 0 || _subroutine_symbols.count(arg.identifier) > 0)
+            throw std::runtime_error(fmt::format("duplicate identifier '{}'", arg.identifier));
+
+        _subroutine_symbols[arg.identifier] = symbol(symbol::segment_t::ARGUMENT, _next_arg_index++, arg.type);
+    }
 
     _generate_statements(subroutine.statements);
 }
 
 void generator::_generate_if_statement(const ast_statement_if *if_statement) {
-
+    auto label_num = _next_label++;
+    auto true_label = fmt::format("IF_TRUE_{}", label_num);
+    auto end_label = fmt::format("IF_END_{}", label_num);
+    _generate_expression(if_statement->conditional);
+    GEN_DYNAMIC(if-goto {}, true_label)
+    _generate_statements(if_statement->false_statements);
+    GEN_DYNAMIC(goto {}, end_label)
+    GEN_DYNAMIC(label {}, true_label)
+    _generate_statements(if_statement->true_statements);
+    GEN_DYNAMIC(label {}, end_label)
 }
 
 void generator::_generate_let_statement(const ast_statement_let *let_statement) {
@@ -88,6 +112,7 @@ void generator::_generate_return_statement(const ast_statement_return *return_st
 
 void generator::_generate_do_statement(const ast_statement_do *do_statement) {
     _generate_subroutine_call(do_statement->call);
+    GEN(pop temp 0)
 }
 
 void generator::_generate_statements(const std::list<ast_statement *> &statements) {
@@ -165,12 +190,17 @@ void generator::_generate_term(const ast_term *term) {
             break;
         }
         case ast_term::type_t::NUL:
+            GEN(push constant 0)
             break;
         case ast_term::type_t::THIS:
+            GEN(push pointer 0)
             break;
         case ast_term::type_t::TRUE:
+            GEN(push constant 0)
+            GEN(not)
             break;
         case ast_term::type_t::FALSE:
+            GEN(push constant 0)
             break;
         case ast_term::type_t::VARIABLE: {
             auto var_term = (ast_term_variable*)term;
@@ -189,28 +219,44 @@ void generator::_generate_term(const ast_term *term) {
         case ast_term::type_t::EXPRESSION:
             _generate_expression(((ast_term_expression*)term)->expression);
             break;
-        case ast_term::type_t::UNARY:
+        case ast_term::type_t::UNARY: {
+            auto unary_term = (ast_term_unary*)term;
+            _generate_term(unary_term->term);
+            if(unary_term->op == ast_unary_op::NEGATE) {
+                GEN(neg)
+            } else {
+                GEN(not)
+            }
             break;
+        }
         case ast_term::type_t::SUBROUTINE_CALL:
             _generate_subroutine_call(((ast_term_subroutine_call*)term)->call);
             break;
     }
 }
 
-void generator::_generate_subroutine_call(const ast_subroutine_call call) {
+void generator::_generate_subroutine_call(const ast_subroutine_call &call) {
+    uint16_t arg_count = call.arguments.size();
+    std::string callee;
+    if(call.callee_identifier.has_value()) {
+        callee = call.callee_identifier.value();
+        auto symbol = _try_get_symbol(call.callee_identifier.value());
+        if(symbol.has_value()) {
+            arg_count++;
+            callee = symbol.value().type;
+            GEN_DYNAMIC(push {}, symbol->to_string())
+        }
+    } else {
+        callee = _top_level->identifier;
+        GEN(push pointer 0)
+        arg_count++;
+    }
 
     for(const auto& param : call.arguments) {
         _generate_expression(param);
     }
+    GEN_DYNAMIC(call {}.{} {}, callee, call.subroutine_identifier, arg_count)
 
-    if(call.callee_identifier.has_value()) {
-        auto symbol = _try_get_symbol(call.callee_identifier.value());
-        if(symbol.has_value()) {
-
-        } else {
-            GEN_DYNAMIC(call {}.{} {}, call.callee_identifier.value(), call.subroutine_identifier, call.arguments.size())
-        }
-    }
 }
 
 std::optional<symbol> generator::_try_get_symbol(const std::string &identifier) {

@@ -60,7 +60,7 @@ public:
 
     void run(std::filesystem::path source_path);
 private:
-    void _scan_source_path(const std::filesystem::path &source_path, std::list<std::filesystem::path>& source_files);
+    void _scan_source_path(std::filesystem::path &source_path, std::list<std::filesystem::path>& source_files);
 
     static void _compile(context* ctx);
 };

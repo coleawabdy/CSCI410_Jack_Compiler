@@ -83,7 +83,9 @@ bool tokenizer::_source_next_token(token &token, std::string &source_code) {
 
     std::regex_search(source_code, matches, REGEX_KEYWORD, std::regex_constants::match_continuous);
     match = _check_matches(matches, source_code);
-    if(!match.empty()) {
+    if(std::isalnum(source_code[0])) {
+        source_code.insert(source_code.begin(), match.begin(), match.end());
+    } else if(!match.empty()) {
         token.type = token::type_t::KEYWORD;
         token.value = token::keyword_from_string(match);
         return true;
@@ -117,7 +119,6 @@ bool tokenizer::_source_next_token(token &token, std::string &source_code) {
 }
 
 std::string tokenizer::_check_matches(const std::smatch &matches, std::string &source_code) {
-
     if(!matches.empty()) {
         std::string ret = matches[0].str();
         source_code.erase(matches[0].first, matches[0].second);

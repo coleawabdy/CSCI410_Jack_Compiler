@@ -3,6 +3,7 @@
 #include <fmt/format.h>
 
 #include <cstdint>
+#include <utility>
 
 struct symbol {
     enum struct segment_t {
@@ -23,12 +24,15 @@ struct symbol {
             case segment_t::THIS:
                 return "this";
         }
+
+        throw std::runtime_error("failed to convert segment to string");
     }
 
-    segment_t segment;
-    uint16_t index;
+    segment_t segment = segment_t::LOCAL;
+    uint16_t index = 0;
+    std::string type;
 
-    symbol(segment_t segment, uint16_t index) : segment(segment), index(index) {};
+    symbol(segment_t segment, uint16_t index, std::string type) : segment(segment), index(index), type(std::move(type)) {};
     symbol() = default;
 
     [[nodiscard]] std::string to_string() const { return fmt::format("{} {}", segment_to_string(segment), index); };

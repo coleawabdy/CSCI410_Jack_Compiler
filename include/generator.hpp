@@ -18,6 +18,7 @@ private:
 
     uint16_t _next_this_index = 0;
     uint16_t _next_local_index = 0;
+    uint16_t _next_arg_index = 0;
     uint16_t _next_label = 0;
 public:
     generator() = default;
@@ -37,7 +38,7 @@ private:
     void _generate_return_statement(const ast_statement_return* return_statement);
     void _generate_expression(const ast_expression &expression);
     void _generate_term(const ast_term* term);
-    void _generate_subroutine_call(ast_subroutine_call call);
+    void _generate_subroutine_call(const ast_subroutine_call &call);
 
     symbol _get_symbol(const std::string& identifier);
     std::optional<symbol> _try_get_symbol(const std::string& identifier);

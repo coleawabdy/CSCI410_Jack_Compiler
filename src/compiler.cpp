@@ -54,10 +54,15 @@ void compiler::run(std::filesystem::path source_path) {
         throw error(errors);
 }
 
-void compiler::_scan_source_path(const std::filesystem::path &source_path, std::list<std::filesystem::path>& source_files) {
-    for(const auto& entry : std::filesystem::directory_iterator(source_path)) {
-        if(entry.is_regular_file() && entry.path().extension() == SOURCE_FILE_EXTENSION)
-            source_files.emplace_back(entry.path());
+void compiler::_scan_source_path(std::filesystem::path &source_path, std::list<std::filesystem::path>& source_files) {
+    if(std::filesystem::is_directory(source_path)) {
+        for(const auto& entry : std::filesystem::directory_iterator(source_path)) {
+            if(entry.is_regular_file() && entry.path().extension() == SOURCE_FILE_EXTENSION)
+                source_files.emplace_back(entry.path());
+        }
+    } else if(std::filesystem::is_regular_file(source_path) && source_path.extension() == SOURCE_FILE_EXTENSION) {
+        source_files.emplace_back(source_path);
+        source_path.remove_filename();
     }
 }
 
